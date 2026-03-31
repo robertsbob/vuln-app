@@ -68,6 +68,16 @@ When the student asks for help on a specific area, find the relevant section and
 
 **L3**: If you trigger an error or unexpected results with a quote, try to understand the query structure. What does the output change look like with `' OR '1'='1` vs just `'`? Does the number of results change?
 
+### "What is second-order SQL injection?"
+
+**L1**: Some SQL injections don't fire immediately when you submit the payload — the dangerous moment is when the payload is *read back* from the database and used in a different query. Think about: where does your username or display name appear in the app after you've saved it?
+
+**L2**: Update your display name in the profile page to something with SQL special characters. Then navigate to different parts of the application. Is your display name used in any database queries on other pages?
+
+**L3**: The projects page queries the database using the currently logged-in user's display name. If that display name contains SQL, it fires when the projects page loads — not when you saved the name.
+
+---
+
 ### "I found a possible SQL injection, what next?"
 
 **L1**: Great start. Now think about what you want to get out of it. What data does the database have that you want? The DB has other tables beyond what's shown on this page.

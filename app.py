@@ -7,10 +7,12 @@ import hashlib
 import functools
 import requests
 import jwt
+import urllib.request
 
 from flask import (
     Flask, render_template, render_template_string, request,
-    redirect, url_for, session, jsonify, send_file, abort, flash, g
+    redirect, url_for, session, jsonify, send_file, abort, flash, g,
+    send_from_directory
 )
 from lxml import etree
 from database import get_db, hash_password, init_db
@@ -85,6 +87,45 @@ def index():
     return redirect(url_for('login'))
 
 
+@app.route('/robots.txt')
+def robots_txt():
+    # Realistic robots.txt — hints at interesting paths for reconnaissance
+    content = """User-agent: *
+Disallow: /admin/
+Disallow: /api/
+Disallow: /reports/
+Disallow: /static/uploads/
+
+# Internal tools (not for public indexing)
+Disallow: /api/v1/debug/
+Disallow: /.git/
+Disallow: /files/
+
+Sitemap: https://portal.meridian-consulting.com/sitemap.xml
+"""
+    return content, 200, {'Content-Type': 'text/plain'}
+
+
+# Exposed .git directory — misconfiguration: app deployed from git repo root
+# A real web server (nginx/apache) would serve this directory; Flask mimics that here
+@app.route('/.git/<path:filename>')
+def git_expose(filename):
+    git_dir = os.path.join(os.path.dirname(__file__), '.git')
+    try:
+        return send_from_directory(git_dir, filename)
+    except Exception:
+        abort(404)
+
+
+@app.route('/.git/HEAD')
+def git_head():
+    git_dir = os.path.join(os.path.dirname(__file__), '.git')
+    try:
+        return send_from_directory(git_dir, 'HEAD')
+    except Exception:
+        abort(404)
+
+
 @app.route('/auth/login', methods=['GET', 'POST'])
 def login():
     # Session fixation: allow setting session id from URL param
@@ -137,6 +178,36 @@ def login():
         return redirect(next_url)
 
     return render_template('auth/login.html', error=error, next=next_url)
+
+
+@app.route('/auth/register', methods=['GET', 'POST'])
+def register():
+    error = None
+    if request.method == 'POST':
+        email = request.form.get('email', '').strip()
+        password = request.form.get('password', '')
+        display_name = request.form.get('display_name', '').strip()
+        if not email or not password or not display_name:
+            error = "All fields are required."
+        elif len(password) < 6:
+            error = "Password must be at least 6 characters."
+        else:
+            db = get_db()
+            existing = db.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
+            if existing:
+                error = "An account with that email already exists."
+                db.close()
+            else:
+                # display_name stored as-is (parameterized here, but used raw in /projects later)
+                db.execute(
+                    "INSERT INTO users (email, password_hash, display_name, role) VALUES (?,?,?,?)",
+                    (email, hash_password(password), display_name, 'client')
+                )
+                db.commit()
+                db.close()
+                flash("Account created. Please sign in.", "success")
+                return redirect(url_for('login'))
+    return render_template('auth/register.html', error=error)
 
 
 @app.route('/auth/logout')
@@ -641,12 +712,21 @@ def reports_list():
 def reports_export():
     if request.method == 'POST':
         report_type = request.form.get('type', 'revenue')
-        # Command injection: filename passed to shell command
+        # Command injection: filename inserted directly into shell pipeline without quoting
         filename = request.form.get('filename', 'report')
-        output_path = f"/tmp/{filename}.csv"
+        report_dir = '/tmp/meridian_reports'
+        os.makedirs(report_dir, exist_ok=True)
+        output_path = f"{report_dir}/{filename}.csv"
         try:
-            # Vulnerable: shell=True with unsanitized user input
-            os.system(f"python3 -c \"import csv,sqlite3; conn=sqlite3.connect('meridian.db'); c=conn.cursor(); c.execute('SELECT * FROM invoices'); rows=c.fetchall(); f=open('{output_path}','w'); f.write('\\n'.join([','.join([str(x) for x in r]) for r in rows])); f.close()\"")
+            # Vulnerable: filename is unquoted in the shell command — ';' injection works
+            cmd = (
+                f"cd {os.path.dirname(os.path.abspath(__file__))} && "
+                f"python3 -c 'import sqlite3; rows=sqlite3.connect(\"meridian.db\")"
+                f".execute(\"SELECT invoice_number,client_name,amount,status,due_date FROM invoices\")"
+                f".fetchall(); [print(\",\".join(str(c) for c in r)) for r in rows]'"
+                f" > {output_path}"
+            )
+            os.system(cmd)
             if os.path.exists(output_path):
                 return send_file(output_path, as_attachment=True,
                                  download_name=f"{filename}.csv")
@@ -677,13 +757,18 @@ def integrations_webhook_test():
     if not url:
         return jsonify({'error': 'URL required'}), 400
     try:
-        # SSRF: arbitrary URL fetched by server without validation
-        resp = requests.get(url, timeout=5, allow_redirects=True)
-        return jsonify({
-            'status': resp.status_code,
-            'headers': dict(resp.headers),
-            'body': resp.text[:2000]
-        })
+        # SSRF: arbitrary URL fetched by server without any validation
+        # urllib supports http://, https://, and file:// protocols
+        req = urllib.request.Request(url, headers={'User-Agent': 'Meridian-Webhook/2.3'})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            body = resp.read(2000).decode('utf-8', errors='replace')
+            return jsonify({
+                'status': resp.status,
+                'headers': dict(resp.headers),
+                'body': body
+            })
+    except urllib.error.HTTPError as e:
+        return jsonify({'status': e.code, 'error': str(e), 'body': e.read(500).decode('utf-8', errors='replace')})
     except Exception as e:
         return jsonify({'error': str(e)})
 
@@ -725,6 +810,12 @@ def profile_update():
     # No CSRF protection
     updates = {}
     for key, value in request.form.items():
+        # Handle plaintext password from the profile form — convert to hash
+        if key == 'password_plain':
+            if value:
+                updates['password_hash'] = hash_password(value)
+            # Skip empty password_plain (user left field blank)
+            continue
         updates[key] = value
 
     if updates:

