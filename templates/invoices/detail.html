@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% block title %}{{ invoice.invoice_number }} — Meridian{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-4">
+  <div>
+    <a href="/invoices" class="text-decoration-none text-muted small"><i class="bi bi-arrow-left me-1"></i>All Invoices</a>
+    <h4 class="mt-1 mb-0">{{ invoice.invoice_number }}</h4>
+    <p class="text-muted small mb-0">Created {{ invoice.created_at }}</p>
+  </div>
+  <div class="d-flex gap-2">
+    {% set badge = {'draft':'secondary','submitted':'warning','approved':'info','paid':'success'} %}
+    <span class="badge bg-{{ badge.get(invoice.status, 'secondary') }} fs-6">{{ invoice.status }}</span>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header bg-white border-0">
+        <h6 class="mb-0 fw-semibold">Invoice Details</h6>
+      </div>
+      <div class="card-body">
+        <dl class="row mb-0 small">
+          <dt class="col-sm-3 text-muted">Client</dt>
+          {# Stored XSS: client_name rendered without escaping #}
+          <dd class="col-sm-9">{{ invoice.client_name | safe }}</dd>
+          <dt class="col-sm-3 text-muted">Description</dt>
+          <dd class="col-sm-9">{{ invoice.description }}</dd>
+          <dt class="col-sm-3 text-muted">Amount</dt>
+          <dd class="col-sm-9 fw-semibold fs-5">${{ "{:,.2f}".format(invoice.amount) }}</dd>
+          <dt class="col-sm-3 text-muted">Due Date</dt>
+          <dd class="col-sm-9">{{ invoice.due_date }}</dd>
+          <dt class="col-sm-3 text-muted">Status</dt>
+          <dd class="col-sm-9"><span class="badge bg-{{ badge.get(invoice.status, 'secondary') }}">{{ invoice.status }}</span></dd>
+        </dl>
+      </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white border-0">
+        <h6 class="mb-0 fw-semibold">Notes</h6>
+      </div>
+      <div class="card-body">
+        {# Stored XSS: notes rendered without escaping (| safe) #}
+        <div class="small text-muted">{{ invoice.notes | safe if invoice.notes else 'No notes.' }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    {% if session.role in ('admin','consultant') %}
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header bg-white border-0">
+        <h6 class="mb-0 fw-semibold">Update Invoice</h6>
+      </div>
+      <div class="card-body">
+        {# No CSRF token on this form #}
+        <form method="POST" action="/invoices/{{ invoice.id }}/update">
+          <div class="mb-2">
+            <label class="form-label small">Status</label>
+            <select name="status" class="form-select form-select-sm">
+              {% for s in ['draft','submitted','approved','paid','cancelled'] %}
+              <option value="{{ s }}" {{ 'selected' if invoice.status == s }}>{{ s|title }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small">Amount</label>
+            <input type="number" name="amount" value="{{ invoice.amount }}" step="0.01" class="form-control form-control-sm">
+          </div>
+          <div class="mb-2">
+            <label class="form-label small">Notes</label>
+            <textarea name="notes" rows="3" class="form-control form-control-sm">{{ invoice.notes }}</textarea>
+          </div>
+          <div class="d-grid">
+            <button type="submit" class="btn btn-sm btn-primary">Save Changes</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+    <div class="card border-0 shadow-sm">
+      <div class="card-body small text-muted">
+        <div><strong>Invoice ID:</strong> {{ invoice.id }}</div>
+        <div><strong>Created by:</strong> User #{{ invoice.created_by }}</div>
+        <div><strong>Client ID:</strong> {{ invoice.client_id }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

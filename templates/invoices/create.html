@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% block title %}New Invoice — Meridian{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <a href="/invoices" class="text-decoration-none text-muted small"><i class="bi bi-arrow-left me-1"></i>Invoices</a>
+    <h4 class="mt-1 mb-0">Create Invoice</h4>
+  </div>
+</div>
+<div class="row">
+  <div class="col-lg-7">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body p-4">
+        <form method="POST">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Client</label>
+            <select name="client_id" class="form-select" onchange="updateClientName(this)">
+              <option value="">— Select client —</option>
+              {% for c in clients %}
+              <option value="{{ c.id }}" data-name="{{ c.company_name }}">{{ c.company_name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <input type="hidden" name="client_name" id="client_name_hidden">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Description</label>
+            <input type="text" name="description" class="form-control" placeholder="e.g. Phase 2 Consulting Services" required>
+          </div>
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label fw-semibold">Amount (USD)</label>
+              <div class="input-group">
+                <span class="input-group-text">$</span>
+                <input type="number" name="amount" class="form-control" step="0.01" placeholder="0.00" required>
+              </div>
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label fw-semibold">Due Date</label>
+              <input type="date" name="due_date" class="form-control">
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Notes <span class="text-muted fw-normal">(internal)</span></label>
+            <textarea name="notes" rows="3" class="form-control" placeholder="Internal notes, terms, special conditions…"></textarea>
+          </div>
+          <div class="d-flex gap-2 justify-content-end">
+            <a href="/invoices" class="btn btn-outline-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary">Create Invoice</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+function updateClientName(sel) {
+  const opt = sel.options[sel.selectedIndex];
+  document.getElementById('client_name_hidden').value = opt.dataset.name || '';
+}
+</script>
+{% endblock %}

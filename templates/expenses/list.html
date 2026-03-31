@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}Expenses — Meridian{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h4 class="mb-0">Expense Reports</h4>
+</div>
+<div class="card border-0 shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr><th>Project</th><th>Submitted By</th><th>Category</th><th>Amount</th><th>Description</th><th>Status</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for exp in expenses %}
+        <tr>
+          <td class="small fw-semibold">{{ exp.project_name }}</td>
+          <td class="small">{{ exp.submitter }}</td>
+          <td class="small">{{ exp.category }}</td>
+          <td class="small">${{ "{:,.2f}".format(exp.amount) }}</td>
+          <td class="small text-muted">{{ exp.description[:60] }}{% if exp.description|length > 60 %}…{% endif %}</td>
+          <td>
+            <span class="badge bg-{{ 'success' if exp.status=='approved' else ('warning' if exp.status=='pending' else 'secondary') }}">{{ exp.status }}</span>
+          </td>
+          <td><a href="/expenses/{{ exp.id }}" class="btn btn-sm btn-outline-primary">View</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-center text-muted py-4">No expenses.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

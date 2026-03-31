@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block title %}Expense #{{ expense.id }} — Meridian{% endblock %}
+{% block content %}
+<div class="mb-4">
+  <a href="/expenses" class="text-decoration-none text-muted small"><i class="bi bi-arrow-left me-1"></i>Expenses</a>
+  <h4 class="mt-1 mb-0">Expense Report #{{ expense.id }}</h4>
+</div>
+<div class="row">
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body">
+        <dl class="row small mb-0">
+          <dt class="col-4 text-muted">Project</dt><dd class="col-8">{{ expense.project_name }}</dd>
+          <dt class="col-4 text-muted">Submitted By</dt><dd class="col-8">{{ expense.submitter }}</dd>
+          <dt class="col-4 text-muted">Category</dt><dd class="col-8">{{ expense.category }}</dd>
+          <dt class="col-4 text-muted">Amount</dt><dd class="col-8 fw-semibold">${{ "{:,.2f}".format(expense.amount) }}</dd>
+          <dt class="col-4 text-muted">Description</dt><dd class="col-8">{{ expense.description }}</dd>
+          <dt class="col-4 text-muted">Status</dt>
+          <dd class="col-8">
+            <span class="badge bg-{{ 'success' if expense.status=='approved' else ('warning' if expense.status=='pending' else 'secondary') }}">{{ expense.status }}</span>
+          </dd>
+          <dt class="col-4 text-muted">Submitted</dt><dd class="col-8">{{ expense.submitted_at }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}Export Report — Meridian{% endblock %}
+{% block content %}
+<div class="mb-4">
+  <a href="/reports" class="text-decoration-none text-muted small"><i class="bi bi-arrow-left me-1"></i>Reports</a>
+  <h4 class="mt-1 mb-0">Generate Report</h4>
+</div>
+<div class="row">
+  <div class="col-lg-5">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body p-4">
+        <form method="POST">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Report Type</label>
+            <select name="type" class="form-select">
+              <option value="revenue">Revenue by Client</option>
+              <option value="projects">Project Status</option>
+              <option value="expenses">Expense Summary</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Output Filename</label>
+            <div class="input-group">
+              <input type="text" name="filename" class="form-control" value="meridian_report" placeholder="filename">
+              <span class="input-group-text">.csv</span>
+            </div>
+            <div class="form-text">The report will be downloaded as a CSV file.</div>
+          </div>
+          <div class="d-grid">
+            <button type="submit" class="btn btn-primary"><i class="bi bi-download me-1"></i>Generate &amp; Download</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
