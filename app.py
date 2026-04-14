@@ -734,7 +734,8 @@ def reports_export():
                 flash("Report generation failed.", "error")
         except Exception as e:
             flash(f"Export error: {e}", "error")
-    return render_template('reports/export.html')
+    report_type = request.args.get('type', 'revenue')
+    return render_template('reports/export.html', selected_type=report_type)
 
 
 # ---------------------------------------------------------------------------

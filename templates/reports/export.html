@@ -13,9 +13,9 @@
           <div class="mb-3">
             <label class="form-label fw-semibold">Report Type</label>
             <select name="type" class="form-select">
-              <option value="revenue">Revenue by Client</option>
-              <option value="projects">Project Status</option>
-              <option value="expenses">Expense Summary</option>
+              <option value="revenue" {% if selected_type == 'revenue' %}selected{% endif %}>Revenue by Client</option>
+              <option value="projects" {% if selected_type == 'projects' %}selected{% endif %}>Project Status</option>
+              <option value="expenses" {% if selected_type == 'expenses' %}selected{% endif %}>Expense Summary</option>
             </select>
           </div>
           <div class="mb-3">

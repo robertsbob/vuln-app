@@ -23,6 +23,7 @@
         <p class="text-muted">Get a JWT token for API access:</p>
         <code class="small">POST /api/v1/auth/token</code>
         <div class="mt-2">
+          <input type="password" id="tokenPassword" class="form-control form-control-sm mb-2" placeholder="Your password">
           <a href="#" onclick="getToken()" class="btn btn-sm btn-outline-secondary">Get Token</a>
         </div>
         <div id="tokenResult" class="mt-2"></div>
@@ -60,7 +61,7 @@ async function getToken() {
   const r = await fetch('/api/v1/auth/token', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({email: '{{ user.email }}', password: ''})
+    body: JSON.stringify({email: '{{ user.email }}', password: document.getElementById('tokenPassword').value})
   });
   const data = await r.json();
   const el = document.getElementById('tokenResult');

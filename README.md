@@ -57,8 +57,9 @@ The app runs at **http://localhost:5000**
 
 To reset to a clean state at any time:
 ```bash
-rm meridian.db && python seed_data.py
+python seed_data.py
 ```
+This removes the database and all uploaded files, then re-seeds everything from scratch.
 
 ---
 
@@ -96,3 +97,8 @@ Both beginner and more advanced techniques are applicable. Some vulnerabilities 
 ## AI-Assisted Learning
 
 The repository includes structured documentation for use with AI coding assistants (see `claud.md`). When you get stuck, an AI agent loaded with this project can provide progressive hints without spoiling the solution.
+
+If you are using **Claude Code**, rename `claud.md` to `CLAUDE.md` so it is automatically loaded as project instructions:
+```bash
+mv claud.md CLAUDE.md
+```

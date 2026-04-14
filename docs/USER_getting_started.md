@@ -44,9 +44,9 @@ Press `Ctrl+C` in the terminal where the app is running.
 
 If you've made changes to the data during testing and want a clean slate:
 ```bash
-rm meridian.db
 python seed_data.py
 ```
+This removes the database and all uploaded files, then re-seeds everything from scratch.
 
 ---
 

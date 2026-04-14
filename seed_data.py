@@ -4,7 +4,52 @@ Run this after init_db() to populate with test data.
 """
 import os
 import shutil
+import struct
 from database import get_db, hash_password, init_db
+
+
+def make_minimal_pdf(title: str) -> bytes:
+    """Generate a valid minimal single-page PDF with a title string."""
+    text = f'Meridian Consulting — {title}'
+    # Escape parentheses in PDF string
+    text_escaped = text.replace('\\', '\\\\').replace('(', '\\(').replace(')', '\\)')
+    stream_content = f'BT /F1 12 Tf 72 720 Td ({text_escaped}) Tj ET'.encode()
+    stream_len = len(stream_content)
+
+    objects = []
+    objects.append(b'1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n')
+    objects.append(b'2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n')
+    objects.append(
+        b'3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] '
+        b'/Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n'
+    )
+    objects.append(
+        b'4 0 obj\n<< /Length ' + str(stream_len).encode() + b' >>\nstream\n'
+        + stream_content + b'\nendstream\nendobj\n'
+    )
+    objects.append(
+        b'5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n'
+    )
+
+    header = b'%PDF-1.4\n'
+    body = b''
+    offsets = []
+    pos = len(header)
+    for obj in objects:
+        offsets.append(pos)
+        body += obj
+        pos += len(obj)
+
+    xref_offset = len(header) + len(body)
+    xref = b'xref\n0 6\n0000000000 65535 f \n'
+    for off in offsets:
+        xref += f'{off:010d} 00000 n \n'.encode()
+
+    trailer = (
+        b'trailer\n<< /Size 6 /Root 1 0 R >>\n'
+        b'startxref\n' + str(xref_offset).encode() + b'\n%%EOF\n'
+    )
+    return header + body + xref + trailer
 
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), 'static', 'uploads', 'documents')
 
@@ -89,12 +134,12 @@ def seed():
     # -------------------------------------------------------------- Documents
     # Create placeholder files
     doc_files = {
-        'pinnacle_dtf_phase1_report.pdf':         b'%PDF-1.4 [Meridian Confidential - Phase 1 Digital Transformation Report - Pinnacle Technology Partners]',
-        'pinnacle_dtf_roadmap_v2.pdf':            b'%PDF-1.4 [Meridian Confidential - 3-Year Digital Transformation Roadmap]',
+        'pinnacle_dtf_phase1_report.pdf':         make_minimal_pdf('Phase 1 Digital Transformation Report — Pinnacle Technology Partners'),
+        'pinnacle_dtf_roadmap_v2.pdf':            make_minimal_pdf('3-Year Digital Transformation Roadmap v2'),
         'globalcorp_supply_chain_baseline.xlsx':  b'PK [Excel - Supply Chain Baseline Assessment Data]',
-        'project_falcon_due_diligence.pdf':       b'%PDF-1.4 [STRICTLY CONFIDENTIAL - Project Falcon - M&A Due Diligence Report - Do Not Distribute]',
-        'meridian_engagement_contract_2024.pdf':  b'%PDF-1.4 [Master Services Agreement - Meridian Consulting Group - 2024]',
-        'startupxyz_market_research.pdf':         b'%PDF-1.4 [Market Research & Competitive Analysis - Startup XYZ]',
+        'project_falcon_due_diligence.pdf':       make_minimal_pdf('CONFIDENTIAL — Project Falcon M&A Due Diligence Report'),
+        'meridian_engagement_contract_2024.pdf':  make_minimal_pdf('Master Services Agreement 2024'),
+        'startupxyz_market_research.pdf':         make_minimal_pdf('Market Research & Competitive Analysis — Startup XYZ'),
         'staff_salary_review_2024.xlsx':          b'PK [INTERNAL - Staff Compensation Review Q1 2024 - CONFIDENTIAL]',
         'meridian_client_list_crm_export.csv':    b'id,company,contact,email,phone,revenue\n1,Pinnacle Technology Partners,David Chen,ceo@pinnacletech.com,+1-555-0101,185000\n2,Global Corp Industries,Sandra Williams,finance@globalcorp.com,+1-555-0202,240000\n3,Startup XYZ,Marcus Reid,contact@startupxyz.com,+1-555-0303,55000',
     }
