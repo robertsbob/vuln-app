@@ -96,9 +96,4 @@ Both beginner and more advanced techniques are applicable. Some vulnerabilities 
 
 ## AI-Assisted Learning
 
-The repository includes structured documentation for use with AI coding assistants (see `claud.md`). When you get stuck, an AI agent loaded with this project can provide progressive hints without spoiling the solution.
-
-If you are using **Claude Code**, rename `claud.md` to `CLAUDE.md` so it is automatically loaded as project instructions:
-```bash
-mv claud.md CLAUDE.md
-```
+The repository includes structured documentation for use with AI coding assistants (see `CLAUDE.md`). When you get stuck, an AI agent loaded with this project can provide progressive hints without spoiling the solution.
